@@ -2,6 +2,7 @@
 
 # VARIABLE
 PYTHON_VERSION=3.12.3
+[[ -x "$(which git 2>&1)" ]] && GIT_AVAILABLE=1 || GIT_AVAILABLE=0 # TEST if git is installed
 
 # Color variable
 # Reset
@@ -9,6 +10,7 @@ Color_Off='\e[0m'       # Stop color
 
 # Normal Color
 Yellow='\e[0;33m'       # Yellow
+Cyan='\e[0;36m'        # Cyan
 
 # Bold
 BBlack='\e[1;30m'       # Black
@@ -36,8 +38,10 @@ function _buildPS1(){
 		buildCommand+=" ${Yellow}(${VIRTUAL_ENV##*/})${Color_Off}"
 	fi
 
+	buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
+
 	# git branch
-	if false && [ $GIT_AVAILABLE -eq 1 ] && [ $GIT -eq 1 ]; then
+	if [ $GIT_AVAILABLE -eq 1 ] ; then
 		# local branch="$(git name-rev --name-only HEAD 2>/dev/null)"
 		local branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
 
@@ -47,15 +51,15 @@ function _buildPS1(){
 			local untracked="$( echo "${git_status}" | grep -F '?? ' | sed -e 's/^\?\(\?\)\s.*$/\1/' )"
 			local status_line="$( echo -e "${letters}\n${untracked}" | sort | uniq | tr -d '[:space:]' )"
 			buildCommand+=" \[${Cyan}\](${branch}"
+			
 			if [ -n "${status_line}" ]; then
 				buidCommand+=" ${status_line}"
 			fi
-			BuildCommand+=")\[${Color_Off}\]"
+
+			buildCommand+=")\[${Color_Off}\]"
 		fi
 	fi
 
-	buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
-	
 	# Based on user type display $ sympol in differen color
 	if [ ${USER} == root ]; then
         	buildCommand+=" \[${BRed}\]\\$\[${Color_Off}\] "

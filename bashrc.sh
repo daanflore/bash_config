@@ -106,4 +106,8 @@ fi
 # Auto acticate python version version can be set at the top
 source ~/venv/$PYTHON_VERSION/bin/activate
 
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
 _buildPS1

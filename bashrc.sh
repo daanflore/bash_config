@@ -41,7 +41,7 @@ function _buildPS1(){
 	buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
 
 	# git branch
-	if [ $GIT_AVAILABLE -eq 1 ] ; then
+	if [ "$GIT_AVAILABLE" -eq 1 ] ; then
 		# local branch="$(git name-rev --name-only HEAD 2>/dev/null)"
 		local branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
 

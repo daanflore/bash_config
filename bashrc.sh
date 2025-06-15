@@ -42,8 +42,8 @@ BWhite='\[\e[1;37m\]'
 
 function _debug_log() {
     if [ "$DEBUG_PROMPT" -eq 1 ]; then
-        echo -e "[DEBUG] $*" >&2
-    fi
+		echo -e "\033[3;90m[DEBUG] $*\033[0m" >&2    
+	fi
 }
 
 # ======================

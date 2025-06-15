@@ -265,3 +265,5 @@ function _maybe_fetch_prompt() {
 }
 
 PROMPT_COMMAND=_maybe_fetch_prompt
+HISTCONTROL=ignoreboth
+HISTIGNORE='ls:cd:pwd:exit:clear:history'

@@ -98,11 +98,13 @@ function _get_git_status() {
     ahead=$(git rev-list --count "@{upstream}..HEAD" 2>/dev/null)
     behind=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null)
     
+
+	if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+        remote_status+="${Red}↓${behind}${Color_Off}"
+    fi
+	
     if [ -n "$ahead" ] && [ "$ahead" -gt 0 ]; then
         remote_status+="${Green}↑${ahead}${Color_Off}"
-    fi
-    if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
-        remote_status+="${Red}↓${behind}${Color_Off}"
     fi
     
     git_status="$(git status --porcelain 2>/dev/null)"

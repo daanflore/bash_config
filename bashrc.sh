@@ -4,13 +4,19 @@
 PYTHON_VERSION=3.12.3
 [[ -x "$(which git 2>&1)" ]] && GIT_AVAILABLE=1 || GIT_AVAILABLE=0 # TEST if git is installed
 
+# Git auto-fetch interval in seconds (default: 5 minutes)
+GIT_FETCH_INTERVAL=300
+
 # Color variable
 # Reset
 Color_Off='\e[0m'       # Stop color
 
 # Normal Color
+Red='\e[0;31m'         # Red
+Green='\e[0;32m'       # Green
 Yellow='\e[0;33m'       # Yellow
 Cyan='\e[0;36m'        # Cyan
+
 
 # Bold
 BBlack='\e[1;30m'       # Black
@@ -28,58 +34,110 @@ BWhite='\e[1;37m'       # White
 # Will prevent the error bind warning line editing not enabled
 [ -z "$PS1" ] && return
 
+function _get_git_status() {
+    if [ "$GIT_AVAILABLE" -ne 1 ]; then
+        return
+    fi
+
+    local branch
+    branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
+    
+    if [ -z "${branch}" ]; then
+        return
+    fi
+
+    local git_status
+    local status_output=""
+    local remote_status=""
+    
+    # Get ahead/behind status
+    local ahead behind
+    ahead=$(git rev-list --count "@{upstream}..HEAD" 2>/dev/null)
+    behind=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null)
+    
+    if [ -n "$ahead" ] && [ "$ahead" -gt 0 ]; then
+        remote_status+="${Green}↑${ahead}${Color_Off}"
+    fi
+    if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+        remote_status+="${Red}↓${behind}${Color_Off}"
+    fi
+    
+    git_status="$(git status --porcelain 2>/dev/null)"
+    local staged_output=""
+    
+    # Check for staged modifications
+    if echo "$git_status" | grep "^M" > /dev/null; then
+        staged_output+="${Green}M ${Color_Off}"
+    fi
+    
+    # Check for staged deletions
+    if echo "$git_status" | grep "^D" > /dev/null; then
+        staged_output+="${Green}D ${Color_Off}"
+    fi
+    
+    # Check for staged additions
+    if echo "$git_status" | grep "^A" > /dev/null; then
+        staged_output+="${Green}A ${Color_Off}"
+    fi
+    
+    # Check for unstaged modifications
+    if echo "$git_status" | grep "^.M" > /dev/null; then
+        status_output+="${Yellow}M ${Color_Off}"
+    fi
+    
+    # Check for unstaged deletions
+    if echo "$git_status" | grep "^.D" > /dev/null; then
+        status_output+="${Red}D ${Color_Off}"
+    fi
+    
+    # Check for untracked files
+    if echo "$git_status" | grep "^??" > /dev/null; then
+        status_output+="${BBlue}U ${Color_Off}"
+    fi
+    
+    # Combine staged and unstaged changes with a separator if both exist
+    if [ -n "$staged_output" ] && [ -n "$status_output" ]; then
+        status_output="${staged_output}| ${status_output}"
+    elif [ -n "$staged_output" ]; then
+        status_output="${staged_output}"
+    fi
+    
+    # Add colon if there are any local changes
+    local branch_separator=""
+    if [ -n "$status_output" ]; then
+        branch_separator=":"
+    fi
+    
+    # Position remote status right after branch name, before the colon and local changes
+    local all_status="${status_output}"
+    
+    echo -n " ${Cyan}(${branch}${remote_status}${branch_separator}${all_status}${Cyan})${Color_Off}"
+}
 
 function _buildPS1(){
-	local previousCommandResult="$?"
+    local previousCommandResult="$?"
 
-	local buildCommand=''
-	# If venv is active display it
-	if [[ -v VIRTUAL_ENV ]]; then
-		buildCommand+=" ${Yellow}(${VIRTUAL_ENV##*/})${Color_Off}"
-	fi
+    local buildCommand=''
+    # If venv is active display it
+    if [[ -v VIRTUAL_ENV ]]; then
+        buildCommand+=" ${Yellow}(${VIRTUAL_ENV##*/})${Color_Off}"
+    fi
 
-	buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
+    buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
 
-	# git branch
-	if [ "$GIT_AVAILABLE" -eq 1 ] ; then
-		# local branch="$(git name-rev --name-only HEAD 2>/dev/null)"
-		local branch
-		
-		branch="$(git branch 2>/dev/null | grep '^.*' | colrm 1 2)"
-		if [ -n "${branch}" ]; then
-			local git_status
-			local letters
-			local untracked
-			local status_line
-			
-			git_status="$(git status --porcelain -b 2>/dev/null)"
-			echo $git_status
-            letters="$( echo "${git_status}" | grep --regexp=' \w ' | sed -e 's/^\s\?\(\w\)\s.*$/\1/' )"
-			echo $letters
-			untracked="$( echo "${git_status}" | grep -F '?? ' | sed -e 's/^\?\(\?\)\s.*$/\1/' )"
-			echo $untracked
-			status_line="$( echo -e "${letters}\n${untracked}" | sort | uniq | tr -d '[:space:]' )"
-			echo $status_line
-			buildCommand+=" \[${Cyan}\](${branch}"
-			
-			if [ -n "${status_line}" ]; then
-				buidCommand+=" ${status_line}"
-			fi
+    # Add git status
+    buildCommand+="$(_get_git_status)"
 
-			buildCommand+=")\[${Color_Off}\]"
-		fi
-	fi
+    # Based on user type display $ symbol in different color
+    if [ "${USER}" == root ]; then
+        buildCommand+=" \[${BRed}\]\\$\[${Color_Off}\] "
+    elif [ "${USER}" != "$(logname)" ]; then
+        buildCommand+=" \[${BBlue}\]\\$\[${Color_Off}\] "
+    else
+        buildCommand+=" \[${BGreen}\]\\$\[${Color_Off}\] "
+    fi
 
-	# Based on user type display $ sympol in differen color
-	if [ "${USER}" == root ]; then
-        	buildCommand+=" \[${BRed}\]\\$\[${Color_Off}\] "
-	elif [ "${USER}" != "$(logname)" ]; then
-		buildCommand+=" \[${BBlue}\]\\$\[${Color_Off}\] "
-	else
-		buildCommand+=" \[${BGreen}\]\\$\[${Color_Off}\] "
- 	fi
-
-	PS1="${buildCommand}"
+    PS1="${buildCommand}"
 }
 
 
@@ -119,4 +177,37 @@ if [ -f "$HOME/.bash_aliases" ]; then
     
 fi
 
-PROMPT_COMMAND=_buildPS1
+# Function to perform git fetch in the background for the current repository
+function _periodic_git_fetch() {
+    if [ "$GIT_AVAILABLE" -ne 1 ]; then
+        return
+    fi
+
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        return
+    fi
+
+    # Get the last fetch time from our marker file
+    local git_dir=$(git rev-parse --git-dir)
+    local last_fetch_file="${git_dir}/FETCH_HEAD"
+    
+    # If the file doesn't exist or it's older than our interval, do a fetch
+    if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
+        (git fetch --quiet &) # Run fetch in background
+    fi
+}
+
+# Add the periodic fetch to PROMPT_COMMAND, but only run it occasionally
+function _maybe_fetch_prompt() {
+    # Only run fetch check roughly every 60 seconds
+    if [ -z "$LAST_FETCH_CHECK" ] || [ $(($(date +%s) - LAST_FETCH_CHECK)) -gt 60 ]; then
+        LAST_FETCH_CHECK=$(date +%s)
+        _periodic_git_fetch
+    fi
+    
+    # Always run the normal prompt command
+    _buildPS1
+}
+
+PROMPT_COMMAND=_maybe_fetch_prompt

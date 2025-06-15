@@ -1,142 +1,156 @@
 #!/usr/bin/env bash
 
-# VARIABLE
-PYTHON_VERSION=3.12.3
-[[ -x "$(which git 2>&1)" ]] && GIT_AVAILABLE=1 || GIT_AVAILABLE=0 # TEST if git is installed
+# ======================
+# CONFIGURATION SECTION
+# ======================
 
-# Git auto-fetch interval in seconds (default: 5 minutes)
+# Python version to activate
+PYTHON_VERSION=3.12.3
+
+# Git fetch interval (in seconds)
 GIT_FETCH_INTERVAL=300
 
-# Color variable
+# Enable debug logging: 1 = enabled, 0 = disabled
+DEBUG_PROMPT=0
+
+# ======================
+# COLOR DEFINITIONS
+# ======================
+
 # Reset
-Color_Off='\[\e[0m\]'       # Stop color
+Color_Off='\[\e[0m\]'
 
 # Normal Color
-Red='\[\e[0;31m\]'         # Red
-Green='\[\e[0;32m\]'       # Green
-Yellow='\[\e[0;33m\]'       # Yellow
-Cyan='\[\e[0;36m\]'        # Cyan
+Red='\[\e[0;31m\]'
+Green='\[\e[0;32m\]'
+Yellow='\[\e[0;33m\]'
+Cyan='\[\e[0;36m\]'
 
 # Bold
-BBlack='\[\e[1;30m\]'       # Black
-BRed='\[\e[1;31m\]'         # Red
-BGreen='\[\e[1;32m\]'       # Green
-BYellow='\[\e[1;33m\]'      # Yellow
-BBlue='\[\e[1;34m\]'        # Blue
-BPurple='\[\e[1;35m\]'      # Purple
-BCyan='\[\e[1;36m\]'        # Cyan
-BWhite='\[\e[1;37m\]'       # White
+BBlack='\[\e[1;30m\]'
+BRed='\[\e[1;31m\]'
+BGreen='\[\e[1;32m\]'
+BYellow='\[\e[1;33m\]'
+BBlue='\[\e[1;34m\]'
+BPurple='\[\e[1;35m\]'
+BCyan='\[\e[1;36m\]'
+BWhite='\[\e[1;37m\]'
 
+# ======================
+# DEBUG HELPER
+# ======================
 
-# ~/.bashrc: executed by bash(1) for non-login shells.
-# If not running interactively, don't do anything
-# Will prevent the error bind warning line editing not enabled
+function _debug_log() {
+    if [ "$DEBUG_PROMPT" -eq 1 ]; then
+        echo -e "[DEBUG] $*" >&2
+    fi
+}
+
+# ======================
+# DETECT GIT AVAILABILITY
+# ======================
+
+[[ -x "$(which git 2>&1)" ]] && GIT_AVAILABLE=1 || GIT_AVAILABLE=0
+
+# ======================
+# INTERACTIVE SHELL CHECK
+# ======================
+
 if [[ "$-" != *i* ]]; then
     return
 fi
 
+# ======================
+# GIT STATUS PROMPT
+# ======================
 
 function _get_git_status() {
+    _debug_log "Running _get_git_status"
+
     if [ "$GIT_AVAILABLE" -ne 1 ]; then
+        _debug_log "Git not available"
         return
     fi
 
     local branch
     branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
-    
+    _debug_log "Git branch: $branch"
+
     if [ -z "${branch}" ]; then
         return
     fi
 
-    local git_status
-    local status_output=""
-    local remote_status=""
-    
-    # Get ahead/behind status
+    local git_status status_output="" remote_status=""
     local ahead behind
+
     ahead=$(git rev-list --count "@{upstream}..HEAD" 2>/dev/null)
     behind=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null)
-    
 
-	if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+    _debug_log "Ahead: $ahead, Behind: $behind"
+
+    if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
         remote_status+="${Red}↓${behind}${Color_Off}"
     fi
-	
     if [ -n "$ahead" ] && [ "$ahead" -gt 0 ]; then
         remote_status+="${Green}↑${ahead}${Color_Off}"
     fi
-    
+
     git_status="$(git status --porcelain 2>/dev/null)"
     local staged_output=""
-    
-    # Check for staged modifications
+
     if echo "$git_status" | grep "^M" > /dev/null; then
         staged_output+="${Green}M ${Color_Off}"
     fi
-    
-    # Check for staged deletions
     if echo "$git_status" | grep "^D" > /dev/null; then
         staged_output+="${Green}D ${Color_Off}"
     fi
-    
-    # Check for staged additions
     if echo "$git_status" | grep "^A" > /dev/null; then
         staged_output+="${Green}A ${Color_Off}"
     fi
-    
-    # Check for unstaged modifications
     if echo "$git_status" | grep "^.M" > /dev/null; then
         status_output+="${Yellow}M ${Color_Off}"
     fi
-    
-    # Check for unstaged deletions
     if echo "$git_status" | grep "^.D" > /dev/null; then
         status_output+="${Red}D ${Color_Off}"
     fi
-    
-    # Check for untracked files
     if echo "$git_status" | grep "^??" > /dev/null; then
         status_output+="${BBlue}U ${Color_Off}"
     fi
-    
-    # Combine staged and unstaged changes with a separator if both exist
+
+    _debug_log "Staged changes: $staged_output"
+    _debug_log "Unstaged changes: $status_output"
+
     if [ -n "$staged_output" ] && [ -n "$status_output" ]; then
         status_output="${staged_output}| ${status_output}"
     elif [ -n "$staged_output" ]; then
         status_output="${staged_output}"
     fi
-    
-    # Add colon if there are any local changes
+
     local branch_separator=""
     if [ -n "$status_output" ]; then
         branch_separator=":"
     fi
-    
-    # Position remote status right after branch name, before the colon and local changes
-    local all_status="${status_output}"
-    
-    echo -n " ${Cyan}(${branch}${remote_status}${branch_separator}${all_status}${Cyan})${Color_Off}"
+
+    echo -n " ${Cyan}(${branch}${remote_status}${branch_separator}${status_output}${Cyan})${Color_Off}"
 }
 
+# ======================
+# PROMPT BUILDER
+# ======================
+
 function _buildPS1(){
-    local previousCommandResult="$?"
+    _debug_log "Building PS1 prompt"
 
     local buildCommand=''
-    
-    # Add current time
     buildCommand+="${BPurple}[\$(date +%H:%M:%S)]${Color_Off}"
-    
-    # If venv is active display it
+
     if [[ -v VIRTUAL_ENV ]]; then
         buildCommand+=" ${Yellow}(${VIRTUAL_ENV##*/})${Color_Off}"
     fi
 
     buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
-
-    # Add git status
     buildCommand+="$(_get_git_status)"
 
-    # Add username with status code and $ with appropriate colors
     if [ "${USER}" == root ]; then
         buildCommand+=" ${BRed}${USER}${Color_Off}"
     elif [ "${USER}" != "$(logname)" ]; then
@@ -145,30 +159,18 @@ function _buildPS1(){
         buildCommand+=" ${BGreen}${USER}${Color_Off}"
     fi
 
-    # Add status code and execution time with color based on success/failure
     if [ $previousCommandResult -eq 0 ]; then
         buildCommand+="${BBlack}(${previousCommandResult}"
     else
         buildCommand+="${BRed}(${previousCommandResult}"
     fi
-    
-    # Add execution time if available
+
     if [ -n "$CMD_DURATION" ]; then
-        if [ $previousCommandResult -eq 0 ]; then
-            buildCommand+="|${CMD_DURATION}"
-        else
-            buildCommand+="|${CMD_DURATION}"
-        fi
-    fi
-    
-    # Close the parentheses
-    if [ $previousCommandResult -eq 0 ]; then
-        buildCommand+=")${Color_Off}"
-    else
-        buildCommand+=")${Color_Off}"
+        buildCommand+="|${CMD_DURATION}"
     fi
 
-    # Add the $ symbol
+    buildCommand+=")${Color_Off}"
+
     if [ "${USER}" == root ]; then
         buildCommand+=" ${BRed}\\$ ${Color_Off} "
     elif [ "${USER}" != "$(logname)" ]; then
@@ -180,75 +182,86 @@ function _buildPS1(){
     PS1="${buildCommand}"
 }
 
+# ======================
+# AUTOCOMPLETE + STYLING
+# ======================
 
-
-# Disable bell sound
 bind 'set bell-style visible'
-
-# When multiple options list them and add shift support to go backwards
 bind 'TAB:menu-complete'
 bind '"\e[Z": menu-complete-backward'
-# Make it case insensitve
 bind 'set completion-ignore-case on'
-
-# Show list of all possible options
 bind 'set show-all-if-ambiguous on'
-
-# Will auto complete until options diff on first tab
 bind "set menu-complete-display-prefix on"
 
-# Add color support
 if [ -x /usr/bin/dircolors ]; then
     test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
     alias ls='ls --color=auto'
     alias dir='dir --color=auto'
     alias vdir='vdir --color=auto'
-
     alias grep='grep --color=auto'
     alias fgrep='fgrep --color=auto'
     alias egrep='egrep --color=auto'
 fi
 
-# Auto acticate python version version can be set at the top
+# ======================
+# PYTHON ENVIRONMENT
+# ======================
+
 source "$HOME/venv/$PYTHON_VERSION/bin/activate"
+
+# ======================
+# CUSTOM ALIASES
+# ======================
 
 if [ -f "$HOME/.bash_aliases" ]; then
     . "$HOME/.bash_aliases"
-    
 fi
 
-# Function to perform git fetch in the background for the current repository
+# ======================
+# PERIODIC GIT FETCH
+# ======================
+
 function _periodic_git_fetch() {
+    _debug_log "Checking if git fetch is needed"
+
     if [ "$GIT_AVAILABLE" -ne 1 ]; then
         return
     fi
 
-    # Check if we're in a git repository
     if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        _debug_log "Not a Git repository, skipping fetch"
         return
     fi
 
-    # Get the last fetch time from our marker file
     local git_dir=$(git rev-parse --git-dir)
     local last_fetch_file="${git_dir}/FETCH_HEAD"
-    
-    # If the file doesn't exist or it's older than our interval, do a fetch
+
     if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
-        (git fetch --quiet &) # Run fetch in background
+        _debug_log "Fetching in background..."
+        (git fetch --quiet &)
     fi
 }
 
-# Add the periodic fetch to PROMPT_COMMAND, but only run it occasionally
 function _maybe_fetch_prompt() {
-    # Only run fetch check roughly every 60 seconds
+    previousCommandResult="$?"
+
+    _debug_log "Executing _maybe_fetch_prompt"
+    _debug_log "Previous command result: $previousCommandResult"
+	_debug_log "Current time: $(date '+%Y-%m-%d %H:%M:%S')"
+
+	if [ -n "$LAST_FETCH_CHECK" ]; then
+		human_time="$(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
+		_debug_log "Last fetch check: $human_time"
+	else
+		_debug_log "Last fetch check: not set"
+	fi
+
     if [ -z "$LAST_FETCH_CHECK" ] || [ $(($(date +%s) - LAST_FETCH_CHECK)) -gt 60 ]; then
         LAST_FETCH_CHECK=$(date +%s)
         _periodic_git_fetch
     fi
-    
-    # Always run the normal prompt command
+
     _buildPS1
 }
 
 PROMPT_COMMAND=_maybe_fetch_prompt
-

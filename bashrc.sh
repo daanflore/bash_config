@@ -43,13 +43,23 @@ function _buildPS1(){
 	# git branch
 	if [ "$GIT_AVAILABLE" -eq 1 ] ; then
 		# local branch="$(git name-rev --name-only HEAD 2>/dev/null)"
-		local branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
-
+		local branch
+		
+		branch="$(git branch 2>/dev/null | grep '^.*' | colrm 1 2)"
 		if [ -n "${branch}" ]; then
-			local git_status="$(git status --porcelain -b 2>/dev/null)"
-			local letters="$( echo "${git_status}" | grep --regexp=' \w ' | sed -e 's/^\s\?\(\w\)\s.*$/\1/' )"
-			local untracked="$( echo "${git_status}" | grep -F '?? ' | sed -e 's/^\?\(\?\)\s.*$/\1/' )"
-			local status_line="$( echo -e "${letters}\n${untracked}" | sort | uniq | tr -d '[:space:]' )"
+			local git_status
+			local letters
+			local untracked
+			local status_line
+			
+			git_status="$(git status --porcelain -b 2>/dev/null)"
+			echo $git_status
+            letters="$( echo "${git_status}" | grep --regexp=' \w ' | sed -e 's/^\s\?\(\w\)\s.*$/\1/' )"
+			echo $letters
+			untracked="$( echo "${git_status}" | grep -F '?? ' | sed -e 's/^\?\(\?\)\s.*$/\1/' )"
+			echo $untracked
+			status_line="$( echo -e "${letters}\n${untracked}" | sort | uniq | tr -d '[:space:]' )"
+			echo $status_line
 			buildCommand+=" \[${Cyan}\](${branch}"
 			
 			if [ -n "${status_line}" ]; then
@@ -61,16 +71,14 @@ function _buildPS1(){
 	fi
 
 	# Based on user type display $ sympol in differen color
-	if [ ${USER} == root ]; then
+	if [ "${USER}" == root ]; then
         	buildCommand+=" \[${BRed}\]\\$\[${Color_Off}\] "
-	elif [ ${USER} != $(logname) ]; then
-		echo "${USER} != $(logname)}"
+	elif [ "${USER}" != "$(logname)" ]; then
 		buildCommand+=" \[${BBlue}\]\\$\[${Color_Off}\] "
 	else
-	    buildCommand+=" \[${BGreen}\]\\$\[${Color_Off}\] "
+		buildCommand+=" \[${BGreen}\]\\$\[${Color_Off}\] "
  	fi
 
-	echo "${buildCommand}"
 	PS1="${buildCommand}"
 }
 
@@ -104,10 +112,11 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 # Auto acticate python version version can be set at the top
-source ~/venv/$PYTHON_VERSION/bin/activate
+source "$HOME/venv/$PYTHON_VERSION/bin/activate"
 
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
+if [ -f "$HOME/.bash_aliases" ]; then
+    . "$HOME/.bash_aliases"
+    
 fi
 
-_buildPS1
+PROMPT_COMMAND=_buildPS1

@@ -7,50 +7,6 @@ PYTHON_VERSION=3.12.3
 # Git auto-fetch interval in seconds (default: 5 minutes)
 GIT_FETCH_INTERVAL=300
 
-# Timer variables for command execution
-CMD_START_TIME=0
-CMD_DURATION=""
-
-# Function to start the command timer
-function timer_start {
-    CMD_START_TIME=$(date +%s%N)
-    CMD_DURATION=""
-}
-
-# Function to stop the timer and format the duration
-function timer_stop {
-    if [ $CMD_START_TIME -gt 0 ]; then
-        local end_time=$(date +%s%N)
-        local duration_ns=$((end_time - CMD_START_TIME))
-        local duration_ms=$((duration_ns/1000000))
-        
-        # Format duration based on length
-        if [ $duration_ms -lt 1000 ]; then
-            CMD_DURATION="${duration_ms}ms"
-        else
-            local duration_s=$((duration_ms/1000))
-            if [ $duration_s -lt 60 ]; then
-                CMD_DURATION="${duration_s}s"
-            else
-                local duration_m=$((duration_s/60))
-                duration_s=$((duration_s%60))
-                if [ $duration_m -lt 60 ]; then
-                    CMD_DURATION="${duration_m}m${duration_s}s"
-                else
-                    local duration_h=$((duration_m/60))
-                    duration_m=$((duration_m%60))
-                    CMD_DURATION="${duration_h}h${duration_m}m"
-                fi
-            fi
-        fi
-    fi
-    CMD_START_TIME=0
-}
-
-# Add the timer hooks
-trap 'timer_start' DEBUG
-PROMPT_COMMAND='timer_stop; _maybe_fetch_prompt'
-
 # Color variable
 # Reset
 Color_Off='\[\e[0m\]'       # Stop color
@@ -75,7 +31,10 @@ BWhite='\[\e[1;37m\]'       # White
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # If not running interactively, don't do anything
 # Will prevent the error bind warning line editing not enabled
-[ -z "$PS1" ] && return
+if [[ "$-" != *i* ]]; then
+    return
+fi
+
 
 function _get_git_status() {
     if [ "$GIT_AVAILABLE" -ne 1 ]; then
@@ -290,3 +249,6 @@ function _maybe_fetch_prompt() {
     # Always run the normal prompt command
     _buildPS1
 }
+
+PROMPT_COMMAND=_maybe_fetch_prompt
+

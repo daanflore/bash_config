@@ -3,7 +3,6 @@
 # ======================
 # CONFIGURATION SECTION
 # ======================
-
 # Python version to activate
 PYTHON_VERSION=3.12.3
 
@@ -12,11 +11,11 @@ GIT_FETCH_INTERVAL=300
 
 # Enable debug logging: 1 = enabled, 0 = disabled
 DEBUG_PROMPT=0
+LAST_FETCH_CHECK=0
 
 # ======================
 # COLOR DEFINITIONS
 # ======================
-
 # Reset
 Color_Off='\[\e[0m\]'
 
@@ -39,7 +38,6 @@ BWhite='\[\e[1;37m\]'
 # ======================
 # DEBUG HELPER
 # ======================
-
 function _debug_log() {
     if [ "$DEBUG_PROMPT" -eq 1 ]; then
 		echo -e "\033[3;90m[DEBUG] $*\033[0m" >&2    
@@ -49,21 +47,78 @@ function _debug_log() {
 # ======================
 # DETECT GIT AVAILABILITY
 # ======================
-
 [[ -x "$(which git 2>&1)" ]] && GIT_AVAILABLE=1 || GIT_AVAILABLE=0
 
 # ======================
 # INTERACTIVE SHELL CHECK
 # ======================
-
 if [[ "$-" != *i* ]]; then
     return
 fi
 
 # ======================
+# PERIODIC GIT FETCH
+# ======================
+function _periodic_git_fetch() {
+    _debug_log "Checking if git fetch is needed"
+
+    if [ "$GIT_AVAILABLE" -ne 1 ]; then
+        _debug_log "Git available
+        "
+        return
+    fi
+
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        _debug_log "Not a Git repository, skipping fetch"
+        return
+    fi
+
+    local git_dir
+    git_dir=$(git rev-parse --git-dir)
+    local last_fetch_file="${git_dir}/FETCH_HEAD"
+
+
+    if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
+        _debug_log "Fetching in background..."
+        (git fetch --quiet &)
+    fi
+}
+
+function _maybe_fetch_prompt() {
+    _debug_log "Executing _maybe_fetch_prompt"
+    
+    # Get current time
+    local current_time
+    current_time=$(date +%s)
+    _debug_log "Current time: $(date -d "@$current_time" '+%Y-%m-%d %H:%M:%S')"
+    
+    # Initialize LAST_FETCH_CHECK if not set
+    if [ -z "$LAST_FETCH_CHECK" ] || [ "$LAST_FETCH_CHECK" -eq 0 ]; then
+        LAST_FETCH_CHECK=$((current_time - GIT_FETCH_INTERVAL - 1))
+    fi
+    
+    _debug_log "Last fetch check: $(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
+    
+    # Check if enough time has passed since last fetch
+    local time_since_last_fetch=$((current_time - LAST_FETCH_CHECK))
+    _debug_log "Time since last fetch: ${time_since_last_fetch}s (interval: ${GIT_FETCH_INTERVAL}s)"
+    
+    if [ "$time_since_last_fetch" -ge "$GIT_FETCH_INTERVAL" ]; then
+        _debug_log "Time interval exceeded, performing git fetch check"
+        LAST_FETCH_CHECK=$current_time
+        _periodic_git_fetch
+    fi
+
+    if [ -z "$LAST_FETCH_CHECK" ] || [ $(($(date +%s) - LAST_FETCH_CHECK)) -gt 60 ]; then
+         LAST_FETCH_CHECK=$(date +%s)
+         _debug_log "$LAST_FETCH_CHECK"
+        _periodic_git_fetch
+    fi
+}
+
+# ======================
 # GIT STATUS PROMPT
 # ======================
-
 function _get_git_status() {
     _debug_log "Running _get_git_status"
 
@@ -79,6 +134,8 @@ function _get_git_status() {
     if [ -z "${branch}" ]; then
         return
     fi
+
+    _maybe_fetch_prompt
 
     local git_status status_output="" remote_status=""
     local ahead behind
@@ -137,8 +194,8 @@ function _get_git_status() {
 # ======================
 # PROMPT BUILDER
 # ======================
-
 function _buildPS1(){
+    previousCommandResult="$?"
     _debug_log "Building PS1 prompt"
 
     local buildCommand=''
@@ -182,7 +239,6 @@ function _buildPS1(){
 # ======================
 # AUTOCOMPLETE + STYLING
 # ======================
-
 bind 'set bell-style visible'
 bind 'TAB:menu-complete'
 bind '"\e[Z": menu-complete-backward'
@@ -203,65 +259,15 @@ fi
 # ======================
 # PYTHON ENVIRONMENT
 # ======================
-
 source "$HOME/venv/$PYTHON_VERSION/bin/activate"
 
 # ======================
 # CUSTOM ALIASES
 # ======================
-
 if [ -f "$HOME/.bash_aliases" ]; then
     . "$HOME/.bash_aliases"
 fi
 
-# ======================
-# PERIODIC GIT FETCH
-# ======================
-
-function _periodic_git_fetch() {
-    _debug_log "Checking if git fetch is needed"
-
-    if [ "$GIT_AVAILABLE" -ne 1 ]; then
-        return
-    fi
-
-    if ! git rev-parse --git-dir > /dev/null 2>&1; then
-        _debug_log "Not a Git repository, skipping fetch"
-        return
-    fi
-
-    local git_dir
-    git_dir=$(git rev-parse --git-dir)
-    local last_fetch_file="${git_dir}/FETCH_HEAD"
-
-    if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
-        _debug_log "Fetching in background..."
-        (git fetch --quiet &)
-    fi
-}
-
-function _maybe_fetch_prompt() {
-	previousCommandResult="$?"
-
-	_debug_log "Executing _maybe_fetch_prompt"
-	_debug_log "Previous command result: $previousCommandResult"
-	_debug_log "Current time: $(date '+%Y-%m-%d %H:%M:%S')"
-
-	if [ -n "$LAST_FETCH_CHECK" ]; then
-		human_time="$(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
-		_debug_log "Last fetch check: $human_time"
-	else
-		_debug_log "Last fetch check: not set"
-	fi
-
-    if [ -z "$LAST_FETCH_CHECK" ] || [ $(($(date +%s) - LAST_FETCH_CHECK)) -gt 60 ]; then
-        LAST_FETCH_CHECK=$(date +%s)
-        _periodic_git_fetch
-    fi
-
-    _buildPS1
-}
-
-PROMPT_COMMAND=_maybe_fetch_prompt
+PROMPT_COMMAND=_buildPS1
 HISTCONTROL=ignoreboth
 HISTIGNORE='ls:cd:pwd:exit:clear:history'

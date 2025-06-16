@@ -7,11 +7,10 @@
 PYTHON_VERSION=3.12.3
 
 # Git fetch interval (in seconds)
-GIT_FETCH_INTERVAL=300
+GIT_FETCH_INTERVAL=30
 
 # Enable debug logging: 1 = enabled, 0 = disabled
 DEBUG_PROMPT=0
-LAST_FETCH_CHECK=0
 
 # ======================
 # COLOR DEFINITIONS
@@ -57,70 +56,33 @@ if [[ "$-" != *i* ]]; then
 fi
 
 # ======================
-# PERIODIC GIT FETCH
-# ======================
-function _periodic_git_fetch() {
-    _debug_log "Checking if git fetch is needed"
-
-    if [ "$GIT_AVAILABLE" -ne 1 ]; then
-        _debug_log "Git available
-        "
-        return
-    fi
-
-    if ! git rev-parse --git-dir > /dev/null 2>&1; then
-        _debug_log "Not a Git repository, skipping fetch"
-        return
-    fi
-
-    local git_dir
-    git_dir=$(git rev-parse --git-dir)
-    local last_fetch_file="${git_dir}/FETCH_HEAD"
-
-
-    if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
-        _debug_log "Fetching in background..."
-        (git fetch --quiet &)
-    fi
-}
-
-function _maybe_fetch_prompt() {
-    _debug_log "Executing _maybe_fetch_prompt"
-    
-    # Get current time
-    local current_time
-    current_time=$(date +%s)
-    _debug_log "Current time: $(date -d "@$current_time" '+%Y-%m-%d %H:%M:%S')"
-    
-    # Initialize LAST_FETCH_CHECK if not set
-    if [ -z "$LAST_FETCH_CHECK" ] || [ "$LAST_FETCH_CHECK" -eq 0 ]; then
-        LAST_FETCH_CHECK=$((current_time - GIT_FETCH_INTERVAL - 1))
-    fi
-    
-    _debug_log "Last fetch check: $(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
-    
-    # Check if enough time has passed since last fetch
-    local time_since_last_fetch=$((current_time - LAST_FETCH_CHECK))
-    _debug_log "Time since last fetch: ${time_since_last_fetch}s (interval: ${GIT_FETCH_INTERVAL}s)"
-    
-    if [ "$time_since_last_fetch" -ge "$GIT_FETCH_INTERVAL" ]; then
-        _debug_log "Time interval exceeded, performing git fetch check"
-        LAST_FETCH_CHECK=$current_time
-        _periodic_git_fetch
-    fi
-
-    if [ -z "$LAST_FETCH_CHECK" ] || [ $(($(date +%s) - LAST_FETCH_CHECK)) -gt 60 ]; then
-         LAST_FETCH_CHECK=$(date +%s)
-         _debug_log "$LAST_FETCH_CHECK"
-        _periodic_git_fetch
-    fi
-}
-
-# ======================
 # GIT STATUS PROMPT
 # ======================
-function _get_git_status() {
-    _debug_log "Running _get_git_status"
+function _git_fetch_if_past_timeout(){
+    _debug_log "Executing _git_fetch_if_past_timeout"
+
+    local current_time
+    local time_since_last_fetch
+    current_time=$(date +%s)
+    _debug_log "Current time: $(date -d "@$current_time" '+%Y-%m-%d %H:%M:%S')"
+    _debug_log "Last fetch check: $(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
+    
+    time_since_last_fetch=$((current_time - LAST_FETCH_CHECK))
+    _debug_log "Time since last fetch: ${time_since_last_fetch}s (interval: ${GIT_FETCH_INTERVAL}s)"
+
+    if [ -z "$LAST_FETCH_CHECK" ] || [ "$time_since_last_fetch" -ge "$GIT_FETCH_INTERVAL" ]; then
+        _debug_log "Time interval exceeded, performing git fetch check"
+         _debug_log "Fetching in background..."
+        (git fetch --quiet &)
+        LAST_FETCH_CHECK=$current_time
+    else
+        _debug_log "No need to fetch, time interval not exceeded"
+    fi
+}
+
+function _append_git_status() {
+    _debug_log "Executing _append_git_status"
+    local -n cmd=$1  # Create a nameref to the buildCommand variable
 
     if [ "$GIT_AVAILABLE" -ne 1 ]; then
         _debug_log "Git not available"
@@ -129,13 +91,14 @@ function _get_git_status() {
 
     local branch
     branch="$(git branch 2>/dev/null | grep '^.*' | colrm 1 2)"
-    _debug_log "Git branch: $branch"
-
+    
     if [ -z "${branch}" ]; then
+        _debug_log "Not in a git repository or no branch found"
         return
     fi
 
-    _maybe_fetch_prompt
+    _debug_log "Git branch: $branch"
+    _git_fetch_if_past_timeout
 
     local git_status status_output="" remote_status=""
     local ahead behind
@@ -188,7 +151,7 @@ function _get_git_status() {
         branch_separator=":"
     fi
 
-    echo -n " ${Cyan}(${branch}${remote_status}${branch_separator}${status_output}${Cyan})${Color_Off}"
+    cmd+=" ${Cyan}(${branch}${remote_status}${branch_separator}${status_output}${Cyan})${Color_Off}"
 }
 
 # ======================
@@ -214,8 +177,7 @@ function _buildPS1(){
     fi
 
     buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
-    buildCommand+="$(_get_git_status)"
-
+    _append_git_status buildCommand
 
     if [ "$previousCommandResult" -ne 0 ]; then
         buildCommand+="${BRed}(${previousCommandResult})${Color_Off}"

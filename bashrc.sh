@@ -199,6 +199,12 @@ function _buildPS1(){
 }
 
 # ======================
+# HISTORY SETTINGS
+# ======================
+HISTCONTROL=ignoreboth
+HISTIGNORE='ls:cd:pwd:exit:clear:history'
+
+# ======================
 # AUTOCOMPLETE + STYLING
 # ======================
 bind 'set bell-style visible'
@@ -230,6 +236,9 @@ if [ -f "$HOME/.bash_aliases" ]; then
     . "$HOME/.bash_aliases"
 fi
 
-PROMPT_COMMAND=_buildPS1
-HISTCONTROL=ignoreboth
-HISTIGNORE='ls:cd:pwd:exit:clear:history'
+# ======================
+# PROMPT COMMAND
+# ======================
+# This command is executed before each prompt
+PROMPT_COMMAND=_buildPS1  
+

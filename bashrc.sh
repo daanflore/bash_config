@@ -73,7 +73,7 @@ function _get_git_status() {
     fi
 
     local branch
-    branch="$(git branch 2>/dev/null | grep '^*' | colrm 1 2)"
+    branch="$(git branch 2>/dev/null | grep '^.*' | colrm 1 2)"
     _debug_log "Git branch: $branch"
 
     if [ -z "${branch}" ]; then
@@ -148,9 +148,6 @@ function _buildPS1(){
         buildCommand+=" ${Yellow}(${VIRTUAL_ENV##*/})${Color_Off}"
     fi
 
-    buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
-    buildCommand+="$(_get_git_status)"
-
     if [ "${USER}" == root ]; then
         buildCommand+=" ${BRed}${USER}${Color_Off}"
     elif [ "${USER}" != "$(logname)" ]; then
@@ -159,17 +156,17 @@ function _buildPS1(){
         buildCommand+=" ${BGreen}${USER}${Color_Off}"
     fi
 
-    if [ $previousCommandResult -eq 0 ]; then
-        buildCommand+="${BBlack}(${previousCommandResult}"
-    else
-        buildCommand+="${BRed}(${previousCommandResult}"
+    buildCommand+=":\[\033[38;5;111m\]\w${Color_Off}" # working directory
+    buildCommand+="$(_get_git_status)"
+
+
+    if [ "$previousCommandResult" -ne 0 ]; then
+        buildCommand+="${BRed}(${previousCommandResult})${Color_Off}"
     fi
 
     if [ -n "$CMD_DURATION" ]; then
         buildCommand+="|${CMD_DURATION}"
     fi
-
-    buildCommand+=")${Color_Off}"
 
     if [ "${USER}" == root ]; then
         buildCommand+=" ${BRed}\\$ ${Color_Off} "
@@ -233,7 +230,8 @@ function _periodic_git_fetch() {
         return
     fi
 
-    local git_dir=$(git rev-parse --git-dir)
+    local git_dir
+    git_dir=$(git rev-parse --git-dir)
     local last_fetch_file="${git_dir}/FETCH_HEAD"
 
     if [ ! -f "$last_fetch_file" ] || [ $(($(date +%s) - $(stat -c %Y "$last_fetch_file"))) -gt "$GIT_FETCH_INTERVAL" ]; then
@@ -243,10 +241,10 @@ function _periodic_git_fetch() {
 }
 
 function _maybe_fetch_prompt() {
-    previousCommandResult="$?"
+	previousCommandResult="$?"
 
-    _debug_log "Executing _maybe_fetch_prompt"
-    _debug_log "Previous command result: $previousCommandResult"
+	_debug_log "Executing _maybe_fetch_prompt"
+	_debug_log "Previous command result: $previousCommandResult"
 	_debug_log "Current time: $(date '+%Y-%m-%d %H:%M:%S')"
 
 	if [ -n "$LAST_FETCH_CHECK" ]; then

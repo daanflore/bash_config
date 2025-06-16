@@ -59,6 +59,8 @@ fi
 # GIT STATUS PROMPT
 # ======================
 function _git_fetch_if_past_timeout(){
+    # TODO: Add option to disable git fetch
+    # TODO: Add logic to handle repo switching
     _debug_log "Executing _git_fetch_if_past_timeout"
 
     local current_time

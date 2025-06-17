@@ -120,22 +120,27 @@ function _append_git_status() {
     git_status="$(git status --porcelain 2>/dev/null)"
     local staged_output=""
 
-    if echo "$git_status" | grep "^M" > /dev/null; then
+    if echo "$git_status" | grep "^M" -q; then
         staged_output+="${Green}M ${Color_Off}"
     fi
-    if echo "$git_status" | grep "^D" > /dev/null; then
+
+    if echo "$git_status" | grep "^D" -q; then
         staged_output+="${Green}D ${Color_Off}"
     fi
-    if echo "$git_status" | grep "^A" > /dev/null; then
+
+    if echo "$git_status" | grep "^A" -q; then
         staged_output+="${Green}A ${Color_Off}"
     fi
-    if echo "$git_status" | grep "^.M" > /dev/null; then
+
+    if echo "$git_status" | grep "^.M" -q; then
         status_output+="${Yellow}M ${Color_Off}"
     fi
-    if echo "$git_status" | grep "^.D" > /dev/null; then
+
+    if echo "$git_status" | grep "^.D" -q; then
         status_output+="${Red}D ${Color_Off}"
     fi
-    if echo "$git_status" | grep "^??" > /dev/null; then
+
+    if echo "$git_status" | grep "^??" -q; then
         status_output+="${BBlue}U ${Color_Off}"
     fi
 
@@ -217,7 +222,7 @@ bind 'set show-all-if-ambiguous on'
 bind "set menu-complete-display-prefix on"
 
 if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    ( test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" ) || eval "$(dircolors -b)"
     alias ls='ls --color=auto'
     alias dir='dir --color=auto'
     alias vdir='vdir --color=auto'
@@ -229,12 +234,14 @@ fi
 # ======================
 # PYTHON ENVIRONMENT
 # ======================
+# shellcheck disable=SC1090
 source "$HOME/venv/$PYTHON_VERSION/bin/activate"
 
 # ======================
 # CUSTOM ALIASES
 # ======================
 if [ -f "$HOME/.bash_aliases" ]; then
+    # shellcheck disable=SC1091
     . "$HOME/.bash_aliases"
 fi
 

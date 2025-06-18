@@ -8,6 +8,7 @@ PYTHON_VERSION=3.12.3
 
 # Git fetch interval (in seconds)
 GIT_FETCH_INTERVAL=30
+LAST_FETCH_CHECK=0
 
 # Enable debug logging: 1 = enabled, 0 = disabled
 DEBUG_PROMPT=0
@@ -100,6 +101,7 @@ function _git_fetch_if_past_timeout(){
     local time_since_last_fetch
     current_time=$(date +%s)
     _debug_log "Current time: $(date -d "@$current_time" '+%Y-%m-%d %H:%M:%S')"
+    
     _debug_log "Last fetch check: $(date -d "@$LAST_FETCH_CHECK" '+%Y-%m-%d %H:%M:%S')"
     
     time_since_last_fetch=$((current_time - LAST_FETCH_CHECK))
